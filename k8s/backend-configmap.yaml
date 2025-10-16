@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  MONGODB_URI: "mongodb://mongodb:27017"
+  PORT: "3000"
