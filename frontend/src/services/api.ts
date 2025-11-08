@@ -11,8 +11,9 @@ const api = axios.create({
   timeout: 120000,
 });
 
-export const analyzeWatchlists = async (users: string[]): Promise<AnalysisResult> => {
-  const response = await api.post<AnalysisResult>('/analyze', { users });
+export const analyzeWatchlists = async (users: string[], forceRefresh: boolean = false): Promise<AnalysisResult> => {
+  const url = forceRefresh ? '/analyze?forceRefresh=true' : '/analyze';
+  const response = await api.post<AnalysisResult>(url, { users });
   return response.data;
 };
 
@@ -35,8 +36,14 @@ export const deleteGroup = async (id: string): Promise<void> => {
   await api.delete(`/groups/${id}`);
 };
 
-export const analyzeGroup = async (id: string): Promise<AnalysisResult> => {
-  const response = await api.post<AnalysisResult>(`/groups/${id}/analyze`);
+export const getGroupAnalysis = async (id: string): Promise<AnalysisResult> => {
+  const response = await api.get<AnalysisResult>(`/groups/${id}/analysis`);
+  return response.data;
+};
+
+export const analyzeGroup = async (id: string, forceRefresh: boolean = false): Promise<AnalysisResult> => {
+  const url = forceRefresh ? `/groups/${id}/analyze?forceRefresh=true` : `/groups/${id}/analyze`;
+  const response = await api.post<AnalysisResult>(url);
   return response.data;
 };
 

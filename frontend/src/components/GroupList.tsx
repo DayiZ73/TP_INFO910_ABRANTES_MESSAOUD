@@ -1,13 +1,13 @@
-import { Trash2, Play } from 'lucide-react';
+import { Trash2, Eye } from 'lucide-react';
 import type { Group } from '../types';
 
 interface GroupListProps {
   groups: Group[];
-  onAnalyze: (group: Group) => void;
+  onView: (group: Group) => void;
   onDelete: (id: string) => void;
 }
 
-export default function GroupList({ groups, onAnalyze, onDelete }: GroupListProps) {
+export default function GroupList({ groups, onView, onDelete }: GroupListProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {groups.map((group) => (
@@ -43,11 +43,11 @@ export default function GroupList({ groups, onAnalyze, onDelete }: GroupListProp
             </div>
           </div>
           <button
-            onClick={() => onAnalyze(group)}
+            onClick={() => onView(group)}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition"
           >
-            <Play className="w-4 h-4" />
-            Analyze
+            <Eye className="w-4 h-4" />
+            View
           </button>
         </div>
       ))}

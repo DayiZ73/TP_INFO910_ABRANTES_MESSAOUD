@@ -3,13 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, RefreshCw } from 'lucide-react';
 import GroupList from '../components/GroupList';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { getGroups, deleteGroup, analyzeGroup } from '../services/api';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { getGroups, deleteGroup, getGroupAnalysis } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import type { Group } from '../types';
 
 export default function Home() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; groupId: string | null }>({
+    isOpen: false,
+    groupId: null
+  });
 
   const fetchGroups = async () => {
     try {
@@ -27,29 +34,47 @@ export default function Home() {
     fetchGroups();
   }, []);
 
-  const handleAnalyze = async (group: Group) => {
+  const handleView = async (group: Group) => {
     try {
       setLoading(true);
-      const analysis = await analyzeGroup(group._id);
-      navigate('/results', { state: { analysis, groupName: group.name } });
-    } catch (error) {
-      console.error('Failed to analyze group:', error);
-      alert('Failed to analyze group. Please try again.');
+      const analysis = await getGroupAnalysis(group._id);
+      navigate('/results', {
+        state: {
+          analysis,
+          groupName: group.name,
+          groupId: group._id
+        }
+      });
+    } catch (error: any) {
+      console.error('Failed to retrieve analysis:', error);
+      const errorMessage = error.response?.data?.message || 'No analysis found. Please use the Refresh button to create a new analysis.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this group?')) {
-      try {
-        await deleteGroup(id);
-        setGroups(groups.filter(g => g._id !== id));
-      } catch (error) {
-        console.error('Failed to delete group:', error);
-        alert('Failed to delete group. Please try again.');
-      }
+  const handleDelete = (id: string) => {
+    setDeleteConfirm({ isOpen: true, groupId: id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.groupId) return;
+
+    try {
+      await deleteGroup(deleteConfirm.groupId);
+      setGroups(groups.filter(g => g._id !== deleteConfirm.groupId));
+      toast.success('Group deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete group:', error);
+      toast.error('Failed to delete group. Please try again.');
+    } finally {
+      setDeleteConfirm({ isOpen: false, groupId: null });
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, groupId: null });
   };
 
   return (
@@ -96,11 +121,22 @@ export default function Home() {
         ) : (
           <GroupList
             groups={groups}
-            onAnalyze={handleAnalyze}
+            onView={handleView}
             onDelete={handleDelete}
           />
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="Delete Group"
+        message="Are you sure you want to delete this group? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 }

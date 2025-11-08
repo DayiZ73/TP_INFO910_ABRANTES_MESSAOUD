@@ -5,6 +5,7 @@ import { validateUser } from '../services/api';
 interface UserInputFieldProps {
   users: string[];
   onUsersChange: (users: string[]) => void;
+  onValidationChange?: (index: number, validation: { loading: boolean; exists: boolean | null }) => void;
 }
 
 interface ValidationState {
@@ -15,7 +16,7 @@ interface ValidationState {
   };
 }
 
-export default function UserInputField({ users, onUsersChange }: UserInputFieldProps) {
+export default function UserInputField({ users, onUsersChange, onValidationChange }: UserInputFieldProps) {
   const [validations, setValidations] = useState<ValidationState>({});
 
   const addUser = () => {
@@ -46,26 +47,32 @@ export default function UserInputField({ users, onUsersChange }: UserInputFieldP
   const handleValidation = async (index: number, username: string) => {
     if (!username.trim()) return;
 
+    const loadingState = { loading: true, exists: null };
     setValidations(prev => ({
       ...prev,
-      [index]: { loading: true, exists: null }
+      [index]: loadingState
     }));
+    onValidationChange?.(index, loadingState);
 
     try {
       const result = await validateUser(username);
+      const validationState = {
+        loading: false,
+        exists: result.exists,
+        displayName: result.displayName
+      };
       setValidations(prev => ({
         ...prev,
-        [index]: {
-          loading: false,
-          exists: result.exists,
-          displayName: result.displayName
-        }
+        [index]: validationState
       }));
+      onValidationChange?.(index, { loading: false, exists: result.exists });
     } catch (error) {
+      const errorState = { loading: false, exists: false };
       setValidations(prev => ({
         ...prev,
-        [index]: { loading: false, exists: false }
+        [index]: errorState
       }));
+      onValidationChange?.(index, errorState);
     }
   };
 

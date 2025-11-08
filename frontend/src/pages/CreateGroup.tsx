@@ -3,51 +3,105 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import UserInputField from '../components/UserInputField';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { createGroup, analyzeWatchlists } from '../services/api';
+import { createGroup, analyzeWatchlists, analyzeGroup } from '../services/api';
+import { useToast } from '../context/ToastContext';
+
+interface ValidationState {
+  loading: boolean;
+  exists: boolean | null;
+}
 
 export default function CreateGroup() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [groupName, setGroupName] = useState('');
   const [users, setUsers] = useState(['']);
   const [loading, setLoading] = useState(false);
   const [saveGroup, setSaveGroup] = useState(false);
+  const [userValidations, setUserValidations] = useState<{[index: number]: ValidationState}>({});
+
+  const handleValidationChange = (index: number, validation: ValidationState) => {
+    setUserValidations(prev => ({
+      ...prev,
+      [index]: validation
+    }));
+  };
 
   const handleAnalyze = async () => {
     const validUsers = users.filter(u => u.trim() !== '');
-    
+
     if (validUsers.length < 2) {
-      alert('Please enter at least 2 users');
+      toast.error('Please enter at least 2 users');
+      return;
+    }
+
+    // Check if any validation is in progress
+    const validationsInProgress = Object.values(userValidations).some(v => v.loading);
+    if (validationsInProgress) {
+      toast.warning('Please wait for user validation to complete');
+      return;
+    }
+
+    // Check if all non-empty users are valid
+    const invalidUsers = validUsers.map((_, idx) => {
+      const validation = userValidations[idx];
+      return validation?.exists === false;
+    });
+
+    if (invalidUsers.some(invalid => invalid)) {
+      toast.error('All users must exist on Letterboxd. Please fix invalid usernames.');
+      return;
+    }
+
+    // Check if all users have been validated
+    const unvalidatedUsers = validUsers.some((_, idx) => {
+      return !userValidations[idx] || userValidations[idx].exists === null;
+    });
+
+    if (unvalidatedUsers) {
+      toast.warning('Please validate all usernames before analyzing');
       return;
     }
 
     try {
       setLoading(true);
 
+      let analysis;
+      let groupId;
+
       if (saveGroup) {
         if (!groupName.trim()) {
-          alert('Please enter a group name');
+          toast.error('Please enter a group name');
           setLoading(false);
           return;
         }
-        await createGroup(groupName, validUsers);
+        // Create the group and get the returned group with _id
+        const createdGroup = await createGroup(groupName, validUsers);
+        groupId = createdGroup._id;
+
+        // Analyze the group (this will save the analysis to the analyses collection)
+        analysis = await analyzeGroup(groupId);
+      } else {
+        // Quick analysis without saving group
+        analysis = await analyzeWatchlists(validUsers);
       }
 
-      const analysis = await analyzeWatchlists(validUsers);
-      
       if (!analysis || !analysis.movies) {
         throw new Error('Invalid response from server');
       }
-      
-      navigate('/results', { 
-        state: { 
-          analysis, 
-          groupName: saveGroup ? groupName : 'Quick Analysis' 
-        } 
+
+      navigate('/results', {
+        state: {
+          analysis,
+          groupName: saveGroup ? groupName : 'Quick Analysis',
+          users: validUsers,
+          groupId: groupId // Pass groupId so Results can use it for refresh
+        }
       });
     } catch (error: any) {
       console.error('Failed to analyze:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to analyze watchlists. Please check that all usernames are valid and try again.';
-      alert(errorMessage);
+      toast.error(errorMessage);
       setLoading(false);
     }
   };
@@ -103,7 +157,11 @@ export default function CreateGroup() {
               <label className="block text-sm text-gray-400 mb-3">
                 Letterboxd Usernames
               </label>
-              <UserInputField users={users} onUsersChange={setUsers} />
+              <UserInputField
+                users={users}
+                onUsersChange={setUsers}
+                onValidationChange={handleValidationChange}
+              />
             </div>
 
             <button

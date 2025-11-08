@@ -1,16 +1,58 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Grid3x3, List } from 'lucide-react';
+import { ArrowLeft, Grid3x3, List, RefreshCw } from 'lucide-react';
 import MovieCard from '../components/MovieCard';
 import MovieList from '../components/MovieList';
 import StatsBar from '../components/StatsBar';
+import { analyzeGroup, analyzeWatchlists } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import type { AnalysisResult } from '../types';
 
 export default function Results() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { analysis, groupName } = location.state as { analysis: AnalysisResult; groupName: string };
+  const toast = useToast();
+  const stateData = location.state as {
+    analysis: AnalysisResult;
+    groupName: string;
+    groupId?: string;
+    users?: string[];
+  };
+
+  const [analysis, setAnalysis] = useState<AnalysisResult>(stateData?.analysis);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  if (!stateData?.analysis) {
+    navigate('/');
+    return null;
+  }
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+
+      let freshAnalysis: AnalysisResult;
+
+      if (stateData.groupId) {
+        // If from saved group, use analyzeGroup
+        freshAnalysis = await analyzeGroup(stateData.groupId, true);
+      } else if (stateData.users) {
+        // If from quick analysis, use analyzeWatchlists
+        freshAnalysis = await analyzeWatchlists(stateData.users, true);
+      } else {
+        throw new Error('No group ID or users data available for refresh');
+      }
+
+      setAnalysis(freshAnalysis);
+      toast.success('Analysis refreshed successfully');
+    } catch (error) {
+      console.error('Failed to refresh analysis:', error);
+      toast.error('Failed to refresh. Please try again.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (!analysis) {
     navigate('/');
@@ -29,7 +71,7 @@ export default function Results() {
         </button>
 
         <div className="mb-6">
-          <h1 className="text-4xl font-bold mb-2">{groupName}</h1>
+          <h1 className="text-4xl font-bold mb-2">{stateData.groupName}</h1>
           <p className="text-gray-400">Analysis Results</p>
         </div>
 
@@ -62,6 +104,19 @@ export default function Results() {
               List
             </button>
           </div>
+
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+              isRefreshing
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
 
         {analysis.movies.length === 0 ? (

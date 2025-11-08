@@ -28,8 +28,21 @@ class LetterboxdService {
       });
 
       const $ = cheerio.load(response.data);
-      const displayName = $('.profile-person .name').text().trim() || username;
 
+      // Check if page contains Letterboxd's error message for non-existent users
+      const bodyText = $('body').text();
+      const hasError = bodyText.includes("Sorry, we can't find the page you've requested");
+
+      if (hasError) {
+        console.log(`⚠️  User ${username}: Error message found - user doesn't exist`);
+        return { exists: false };
+      }
+
+      // Try to get display name from profile, fallback to username
+      const displayNameElem = $('.profile-person .name');
+      const displayName = displayNameElem.text().trim() || username;
+
+      console.log(`✅ User ${username}: Valid user found`);
       return {
         exists: true,
         displayName: displayName
@@ -65,47 +78,56 @@ class LetterboxdService {
 
   async fetchUserWatchlist(username) {
     try {
-      await delayRequest();
       console.log(`📥 Fetching watchlist for ${username}`);
-      const url = `https://letterboxd.com/${username}/watchlist/`;
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        },
-        timeout: 15000
-      });
-
-      const $ = cheerio.load(response.data);
       const watchlist = [];
+      let page = 1;
+      let hasMorePages = true;
 
-      $('li.griditem .react-component[data-film-id]').each((i, elem) => {
-        const filmSlug = $(elem).attr('data-item-slug');
-        const filmName = $(elem).attr('data-item-name');
-        const filmId = $(elem).attr('data-film-id');
+      // Loop through all pages until no more films found
+      while (hasMorePages) {
+        await delayRequest();
+        const url = `https://letterboxd.com/${username}/watchlist/page/${page}/`;
+        console.log(`  📄 Fetching page ${page}...`);
 
-        if (filmSlug && filmId) {
-          watchlist.push({
-            id: filmId,
-            slug: filmSlug,
-            title: filmName,
-            posterUrl: null // Will be fetched separately to avoid too many requests
-          });
+        const response = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          },
+          timeout: 15000
+        });
+
+        const $ = cheerio.load(response.data);
+        let filmsFoundOnPage = 0;
+
+        $('li.griditem .react-component[data-film-id]').each((i, elem) => {
+          const filmSlug = $(elem).attr('data-item-slug');
+          const filmName = $(elem).attr('data-item-name');
+          const filmId = $(elem).attr('data-film-id');
+
+          if (filmSlug && filmId) {
+            watchlist.push({
+              id: filmId,
+              slug: filmSlug,
+              title: filmName,
+              posterUrl: null // Will be fetched separately to avoid too many requests
+            });
+            filmsFoundOnPage++;
+          }
+        });
+
+        console.log(`  ✅ Found ${filmsFoundOnPage} films on page ${page}`);
+
+        // Stop if no films found on this page
+        if (filmsFoundOnPage === 0) {
+          hasMorePages = false;
+        } else {
+          page++;
         }
-      });
-
-      // Fetch poster URLs for first 20 films only to avoid too many requests
-      const filmsToFetch = watchlist.slice(0, 20);
-      console.log(`🖼️  Fetching poster URLs for ${filmsToFetch.length} films...`);
-
-      for (const film of filmsToFetch) {
-        film.posterUrl = await this.fetchFilmPoster(film.slug);
       }
 
-      // Set placeholder for remaining films
-      for (let i = 20; i < watchlist.length; i++) {
-        watchlist[i].posterUrl = 'https://s.ltrbxd.com/static/img/empty-poster-230.png';
-      }
+      console.log(`✅ Total watchlist: ${watchlist.length} films across ${page - 1} pages`);
 
+      // Posters will be fetched later for common movies only (after analysis)
       return watchlist;
     } catch (error) {
       if (error.response && error.response.status === 404) {
@@ -117,25 +139,46 @@ class LetterboxdService {
 
   async fetchUserWatched(username) {
     try {
-      await delayRequest();
       console.log(`📥 Fetching watched films for ${username}`);
-      const url = `https://letterboxd.com/${username}/films/`;
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        },
-        timeout: 15000
-      });
-
-      const $ = cheerio.load(response.data);
       const watched = [];
+      let page = 1;
+      let hasMorePages = true;
 
-      $('li.griditem .react-component[data-film-id]').each((i, elem) => {
-        const filmId = $(elem).attr('data-film-id');
-        if (filmId) {
-          watched.push(filmId);
+      // Loop through all pages until no more films found
+      while (hasMorePages) {
+        await delayRequest();
+        const url = `https://letterboxd.com/${username}/films/page/${page}/`;
+        console.log(`  📄 Fetching watched page ${page}...`);
+
+        const response = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+          },
+          timeout: 15000
+        });
+
+        const $ = cheerio.load(response.data);
+        let filmsFoundOnPage = 0;
+
+        $('li.griditem .react-component[data-film-id]').each((i, elem) => {
+          const filmId = $(elem).attr('data-film-id');
+          if (filmId) {
+            watched.push(filmId);
+            filmsFoundOnPage++;
+          }
+        });
+
+        console.log(`  ✅ Found ${filmsFoundOnPage} watched films on page ${page}`);
+
+        // Stop if no films found on this page
+        if (filmsFoundOnPage === 0) {
+          hasMorePages = false;
+        } else {
+          page++;
         }
-      });
+      }
+
+      console.log(`✅ Total watched: ${watched.length} films across ${page - 1} pages`);
 
       return watched;
     } catch (error) {
