@@ -117,6 +117,11 @@ class LetterboxdService {
 
         console.log(`  ✅ Found ${filmsFoundOnPage} films on page ${page}`);
 
+        // Debug: Log sample IDs from first page
+        if (page === 1 && filmsFoundOnPage > 0) {
+          console.log(`  🔍 DEBUG - Sample watchlist IDs (first 3):`, watchlist.slice(0, 3).map(m => m.id));
+        }
+
         // Stop if no films found on this page
         if (filmsFoundOnPage === 0) {
           hasMorePages = false;
@@ -159,16 +164,43 @@ class LetterboxdService {
 
         const $ = cheerio.load(response.data);
         let filmsFoundOnPage = 0;
+        let selectorUsed = null;
 
-        $('li.griditem .react-component[data-film-id]').each((i, elem) => {
-          const filmId = $(elem).attr('data-film-id');
-          if (filmId) {
-            watched.push(filmId);
-            filmsFoundOnPage++;
+        // Try multiple selectors in order of priority
+        // CRITICAL: Use same selector as watchlist FIRST to ensure ID format matches
+        const selectors = [
+          'li.griditem .react-component[data-film-id]',     // SAME as watchlist - PRIORITY 1
+          'li.poster-container div[data-film-id]',          // Fallback for different HTML
+          'ul.poster-list > li div[data-film-id]',          // Alternative structure
+          'li.poster-container .film-poster[data-film-id]', // Variant
+          '[data-film-id]'                                   // Catch-all fallback
+        ];
+
+        for (const selector of selectors) {
+          const elements = $(selector);
+          if (elements.length > 0) {
+            elements.each((i, elem) => {
+              const filmId = $(elem).attr('data-film-id');
+              if (filmId && !watched.includes(filmId)) {
+                watched.push(filmId);
+                filmsFoundOnPage++;
+              }
+            });
+            selectorUsed = selector;
+            break; // Stop after first successful selector
           }
-        });
+        }
 
-        console.log(`  ✅ Found ${filmsFoundOnPage} watched films on page ${page}`);
+        if (page === 1 && filmsFoundOnPage === 0) {
+          console.warn(`  ⚠️  No films found on page 1 with any selector - user may have no watched films or selectors may need updating`);
+        }
+
+        console.log(`  ✅ Found ${filmsFoundOnPage} watched films on page ${page}${selectorUsed ? ` (selector: ${selectorUsed})` : ''}`);
+
+        // Debug: Log sample IDs from first page
+        if (page === 1 && filmsFoundOnPage > 0) {
+          console.log(`  🔍 DEBUG - Sample watched IDs (first 3):`, watched.slice(0, 3));
+        }
 
         // Stop if no films found on this page
         if (filmsFoundOnPage === 0) {

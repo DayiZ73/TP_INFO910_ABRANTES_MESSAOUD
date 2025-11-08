@@ -2,8 +2,9 @@ class AnalyzeService {
   calculateCommonMovies(usersData) {
     const movieMap = new Map();
 
-    usersData.forEach(userData => {
-      userData.watchlist.forEach(movie => {
+    // PHASE 1: Build the map of common movies (from watchlists only)
+    usersData.forEach((userData) => {
+      userData.watchlist.forEach((movie) => {
         const key = movie.id;
         if (!movieMap.has(key)) {
           movieMap.set(key, {
@@ -17,12 +18,28 @@ class AnalyzeService {
         const movieData = movieMap.get(key);
         movieData.inWatchlistCount++;
         movieData.users.push(userData.username);
+      });
+    });
 
-        if (userData.watched.includes(movie.id)) {
+    // PHASE 2: Count watched films across ALL users for each common movie
+    movieMap.forEach((movieData, movieId) => {
+      const normalizedMovieId = String(movieId).trim();
+
+      // Check EVERY user (even those who don't have the movie in their watchlist)
+      usersData.forEach((userData) => {
+        const normalizedWatched = userData.watched.map(id => String(id).trim());
+
+        if (normalizedWatched.includes(normalizedMovieId)) {
           movieData.watchedCount++;
         }
       });
     });
+
+    // Debug: Log a sample movie to verify the fix
+    const firstMovie = Array.from(movieMap.values())[0];
+    if (firstMovie) {
+      console.log(`🔍 DEBUG - First common movie "${firstMovie.title}": inWatchlist=${firstMovie.inWatchlistCount}, watched=${firstMovie.watchedCount}`);
+    }
 
     return Array.from(movieMap.values());
   }
