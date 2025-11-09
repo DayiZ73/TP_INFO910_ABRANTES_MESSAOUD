@@ -11,6 +11,7 @@ class AnalyzeService {
             ...movie,
             inWatchlistCount: 0,
             watchedCount: 0,
+            watchedBy: [],
             users: []
           });
         }
@@ -31,6 +32,7 @@ class AnalyzeService {
 
         if (normalizedWatched.includes(normalizedMovieId)) {
           movieData.watchedCount++;
+          movieData.watchedBy.push(userData.username);
         }
       });
     });

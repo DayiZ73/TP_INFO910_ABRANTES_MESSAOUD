@@ -6,6 +6,7 @@ export interface Movie {
   inWatchlistCount: number;
   watchedCount: number;
   users: string[];
+  watchedBy?: string[];
   priority: number;
   rating?: string;
   year?: string;

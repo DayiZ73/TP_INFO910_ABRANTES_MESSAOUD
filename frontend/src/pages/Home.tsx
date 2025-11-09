@@ -42,7 +42,8 @@ export default function Home() {
         state: {
           analysis,
           groupName: group.name,
-          groupId: group._id
+          groupId: group._id,
+          users: group.users
         }
       });
     } catch (error: any) {

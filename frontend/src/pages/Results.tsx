@@ -76,7 +76,11 @@ export default function Results() {
         </div>
 
         <div className="mb-6">
-          <StatsBar totalMovies={analysis.totalMovies} totalUsers={analysis.totalUsers} />
+          <StatsBar
+            totalMovies={analysis.totalMovies}
+            totalUsers={analysis.totalUsers}
+            users={stateData.users}
+          />
         </div>
 
         <div className="flex justify-between items-center mb-6">
